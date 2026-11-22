@@ -13,11 +13,3 @@ app.use("/api/saludo", saludoRoutes);
 app.use("/api/productos", productosRoutes);
 
 module.exports = app;
-
-
-C-4-A-V
-ca.alegriaduocuc.cl
-
-cd ~/happy-paws-backend
-git config C-4-A-V
-git config ca.alegriaduocuc.cl
