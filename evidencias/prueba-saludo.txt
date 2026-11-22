@@ -1,0 +1,11 @@
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Content-Type: application/json; charset=utf-8
+Content-Length: 61
+ETag: W/"3d-mBZBV6hByJXEyQBHrBfs9oaPKFU"
+Date: Sun, 22 Nov 2026 22:40:51 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"mensaje":"Bienvenido a la API de Happy Paws","estado":"OK"}
