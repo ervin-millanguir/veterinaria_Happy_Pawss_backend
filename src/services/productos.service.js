@@ -1,45 +1,68 @@
-let productos = [];
-let siguienteId = 1;
+const pool = require("../config/database");
 
-const listar = () => {
-  return productos;
-};
-
-const buscarPorId = (id) => {
-  return productos.find((p) => p.id === Number(id));
-};
-
-const crear = (datos) => {
-  const producto = {
-    id: siguienteId++,
-    nombre: datos.nombre,
-    precio: datos.precio,
-    stock: datos.stock,
-  };
-
-  productos.push(producto);
-  return producto;
-};
-
-const actualizar = (id, datos) => {
-  const producto = buscarPorId(id);
-
+const convertirProducto = (producto) => {
   if (!producto) return null;
 
-  Object.assign(producto, datos, { id: producto.id });
-
-  return producto;
+  return {
+    ...producto,
+    precio: Number(producto.precio),
+  };
 };
 
-const eliminar = (id) => {
-  const indice = productos.findIndex(
-    (p) => p.id === Number(id)
+const listar = async () => {
+  const resultado = await pool.query(
+    "SELECT id, nombre, precio, stock FROM productos ORDER BY id"
   );
 
-  if (indice === -1) return false;
+  return resultado.rows.map(convertirProducto);
+};
 
-  productos.splice(indice, 1);
-  return true;
+const buscarPorId = async (id) => {
+  const resultado = await pool.query(
+    "SELECT id, nombre, precio, stock FROM productos WHERE id = $1",
+    [id]
+  );
+
+  return convertirProducto(resultado.rows[0]);
+};
+
+const crear = async (datos) => {
+  const resultado = await pool.query(
+    `INSERT INTO productos (nombre, precio, stock)
+     VALUES ($1, $2, $3)
+     RETURNING id, nombre, precio, stock`,
+    [datos.nombre, datos.precio, datos.stock]
+  );
+
+  return convertirProducto(resultado.rows[0]);
+};
+
+const actualizar = async (id, datos) => {
+  const resultado = await pool.query(
+    `UPDATE productos
+     SET nombre = COALESCE($1, nombre),
+         precio = COALESCE($2, precio),
+         stock = COALESCE($3, stock)
+     WHERE id = $4
+     RETURNING id, nombre, precio, stock`,
+    [
+      datos.nombre ?? null,
+      datos.precio ?? null,
+      datos.stock ?? null,
+      id,
+    ]
+  );
+
+  return convertirProducto(resultado.rows[0]);
+};
+
+const eliminar = async (id) => {
+  const resultado = await pool.query(
+    "DELETE FROM productos WHERE id = $1 RETURNING id",
+    [id]
+  );
+
+  return resultado.rowCount > 0;
 };
 
 module.exports = {

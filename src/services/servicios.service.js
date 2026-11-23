@@ -1,45 +1,68 @@
-let servicios = [];
-let siguienteId = 1;
+const pool = require("../config/database");
 
-const listar = () => {
-  return servicios;
-};
-
-const buscarPorId = (id) => {
-  return servicios.find((s) => s.id === Number(id));
-};
-
-const crear = (datos) => {
-  const servicio = {
-    id: siguienteId++,
-    nombre: datos.nombre,
-    descripcion: datos.descripcion,
-    precio: datos.precio,
-  };
-
-  servicios.push(servicio);
-  return servicio;
-};
-
-const actualizar = (id, datos) => {
-  const servicio = buscarPorId(id);
-
+const convertirServicio = (servicio) => {
   if (!servicio) return null;
 
-  Object.assign(servicio, datos, { id: servicio.id });
-
-  return servicio;
+  return {
+    ...servicio,
+    precio: Number(servicio.precio),
+  };
 };
 
-const eliminar = (id) => {
-  const indice = servicios.findIndex(
-    (s) => s.id === Number(id)
+const listar = async () => {
+  const resultado = await pool.query(
+    "SELECT id, nombre, descripcion, precio FROM servicios ORDER BY id"
   );
 
-  if (indice === -1) return false;
+  return resultado.rows.map(convertirServicio);
+};
 
-  servicios.splice(indice, 1);
-  return true;
+const buscarPorId = async (id) => {
+  const resultado = await pool.query(
+    "SELECT id, nombre, descripcion, precio FROM servicios WHERE id = $1",
+    [id]
+  );
+
+  return convertirServicio(resultado.rows[0]);
+};
+
+const crear = async (datos) => {
+  const resultado = await pool.query(
+    `INSERT INTO servicios (nombre, descripcion, precio)
+     VALUES ($1, $2, $3)
+     RETURNING id, nombre, descripcion, precio`,
+    [datos.nombre, datos.descripcion, datos.precio]
+  );
+
+  return convertirServicio(resultado.rows[0]);
+};
+
+const actualizar = async (id, datos) => {
+  const resultado = await pool.query(
+    `UPDATE servicios
+     SET nombre = COALESCE($1, nombre),
+         descripcion = COALESCE($2, descripcion),
+         precio = COALESCE($3, precio)
+     WHERE id = $4
+     RETURNING id, nombre, descripcion, precio`,
+    [
+      datos.nombre ?? null,
+      datos.descripcion ?? null,
+      datos.precio ?? null,
+      id,
+    ]
+  );
+
+  return convertirServicio(resultado.rows[0]);
+};
+
+const eliminar = async (id) => {
+  const resultado = await pool.query(
+    "DELETE FROM servicios WHERE id = $1 RETURNING id",
+    [id]
+  );
+
+  return resultado.rowCount > 0;
 };
 
 module.exports = {

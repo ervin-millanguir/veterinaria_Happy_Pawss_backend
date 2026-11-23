@@ -1,22 +1,50 @@
 const productosService = require("../services/productos.service");
 
-const listar = (req, res) => {
-  res.status(200).json(productosService.listar());
+const manejarError = (res, error) => {
+  console.error("Error en productos:", error.message);
+
+  return res.status(500).json({
+    mensaje: "Error interno del servidor",
+  });
 };
 
-const buscarPorId = (req, res) => {
-  const producto = productosService.buscarPorId(req.params.id);
+const idValido = (id) => {
+  const numero = Number(id);
+  return Number.isSafeInteger(numero) && numero > 0;
+};
 
-  if (!producto) {
+const listar = async (req, res) => {
+  try {
+    const productos = await productosService.listar();
+    return res.status(200).json(productos);
+  } catch (error) {
+    return manejarError(res, error);
+  }
+};
+
+const buscarPorId = async (req, res) => {
+  if (!idValido(req.params.id)) {
     return res.status(404).json({
       mensaje: "Producto no encontrado",
     });
   }
 
-  res.status(200).json(producto);
+  try {
+    const producto = await productosService.buscarPorId(req.params.id);
+
+    if (!producto) {
+      return res.status(404).json({
+        mensaje: "Producto no encontrado",
+      });
+    }
+
+    return res.status(200).json(producto);
+  } catch (error) {
+    return manejarError(res, error);
+  }
 };
 
-const crear = (req, res) => {
+const crear = async (req, res) => {
   const { nombre, precio, stock } = req.body;
 
   if (
@@ -33,16 +61,20 @@ const crear = (req, res) => {
     });
   }
 
-  const producto = productosService.crear({
-    nombre: nombre.trim(),
-    precio,
-    stock,
-  });
+  try {
+    const producto = await productosService.crear({
+      nombre: nombre.trim(),
+      precio,
+      stock,
+    });
 
-  res.status(201).json(producto);
+    return res.status(201).json(producto);
+  } catch (error) {
+    return manejarError(res, error);
+  }
 };
 
-const actualizar = (req, res) => {
+const actualizar = async (req, res) => {
   const { nombre, precio, stock } = req.body;
 
   if (
@@ -60,33 +92,53 @@ const actualizar = (req, res) => {
     });
   }
 
-  const producto = productosService.actualizar(req.params.id, {
-    ...(nombre !== undefined && { nombre: nombre.trim() }),
-    ...(precio !== undefined && { precio }),
-    ...(stock !== undefined && { stock }),
-  });
-
-  if (!producto) {
+  if (!idValido(req.params.id)) {
     return res.status(404).json({
       mensaje: "Producto no encontrado",
     });
   }
 
-  res.status(200).json(producto);
+  try {
+    const producto = await productosService.actualizar(req.params.id, {
+      ...(nombre !== undefined && { nombre: nombre.trim() }),
+      ...(precio !== undefined && { precio }),
+      ...(stock !== undefined && { stock }),
+    });
+
+    if (!producto) {
+      return res.status(404).json({
+        mensaje: "Producto no encontrado",
+      });
+    }
+
+    return res.status(200).json(producto);
+  } catch (error) {
+    return manejarError(res, error);
+  }
 };
 
-const eliminar = (req, res) => {
-  const eliminado = productosService.eliminar(req.params.id);
-
-  if (!eliminado) {
+const eliminar = async (req, res) => {
+  if (!idValido(req.params.id)) {
     return res.status(404).json({
       mensaje: "Producto no encontrado",
     });
   }
 
-  res.status(200).json({
-    mensaje: "Producto eliminado correctamente",
-  });
+  try {
+    const eliminado = await productosService.eliminar(req.params.id);
+
+    if (!eliminado) {
+      return res.status(404).json({
+        mensaje: "Producto no encontrado",
+      });
+    }
+
+    return res.status(200).json({
+      mensaje: "Producto eliminado correctamente",
+    });
+  } catch (error) {
+    return manejarError(res, error);
+  }
 };
 
 module.exports = {

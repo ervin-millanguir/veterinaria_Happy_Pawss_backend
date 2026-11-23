@@ -1,7 +1,10 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 
+process.env.DB_NAME = "happy_paws_test";
+
 const app = require("../src/app");
+const pool = require("../src/config/database");
 
 let server;
 let baseURL;
@@ -18,13 +21,17 @@ before(async () => {
 });
 
 after(async () => {
-  if (server) {
-    await new Promise((resolve, reject) => {
-      server.close((error) => {
-        if (error) reject(error);
-        else resolve();
+  try {
+    if (server) {
+      await new Promise((resolve, reject) => {
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
       });
-    });
+    }
+  } finally {
+    await pool.end();
   }
 });
 
