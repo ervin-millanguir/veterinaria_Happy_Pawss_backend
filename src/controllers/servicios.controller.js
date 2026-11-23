@@ -1,22 +1,50 @@
 const serviciosService = require("../services/servicios.service");
 
-const listar = (req, res) => {
-  res.status(200).json(serviciosService.listar());
+const manejarError = (res, error) => {
+  console.error("Error en servicios:", error.message);
+
+  return res.status(500).json({
+    mensaje: "Error interno del servidor",
+  });
 };
 
-const buscarPorId = (req, res) => {
-  const servicio = serviciosService.buscarPorId(req.params.id);
+const idValido = (id) => {
+  const numero = Number(id);
+  return Number.isInteger(numero) && numero > 0 && numero <= 2147483647;
+};
 
-  if (!servicio) {
+const listar = async (req, res) => {
+  try {
+    const servicios = await serviciosService.listar();
+    return res.status(200).json(servicios);
+  } catch (error) {
+    return manejarError(res, error);
+  }
+};
+
+const buscarPorId = async (req, res) => {
+  if (!idValido(req.params.id)) {
     return res.status(404).json({
       mensaje: "Servicio no encontrado",
     });
   }
 
-  res.status(200).json(servicio);
+  try {
+    const servicio = await serviciosService.buscarPorId(req.params.id);
+
+    if (!servicio) {
+      return res.status(404).json({
+        mensaje: "Servicio no encontrado",
+      });
+    }
+
+    return res.status(200).json(servicio);
+  } catch (error) {
+    return manejarError(res, error);
+  }
 };
 
-const crear = (req, res) => {
+const crear = async (req, res) => {
   const { nombre, descripcion, precio } = req.body;
 
   if (
@@ -33,16 +61,20 @@ const crear = (req, res) => {
     });
   }
 
-  const servicio = serviciosService.crear({
-    nombre: nombre.trim(),
-    descripcion: descripcion.trim(),
-    precio,
-  });
+  try {
+    const servicio = await serviciosService.crear({
+      nombre: nombre.trim(),
+      descripcion: descripcion.trim(),
+      precio,
+    });
 
-  res.status(201).json(servicio);
+    return res.status(201).json(servicio);
+  } catch (error) {
+    return manejarError(res, error);
+  }
 };
 
-const actualizar = (req, res) => {
+const actualizar = async (req, res) => {
   const { nombre, descripcion, precio } = req.body;
 
   if (
@@ -60,35 +92,55 @@ const actualizar = (req, res) => {
     });
   }
 
-  const servicio = serviciosService.actualizar(req.params.id, {
-    ...(nombre !== undefined && { nombre: nombre.trim() }),
-    ...(descripcion !== undefined && {
-      descripcion: descripcion.trim(),
-    }),
-    ...(precio !== undefined && { precio }),
-  });
-
-  if (!servicio) {
+  if (!idValido(req.params.id)) {
     return res.status(404).json({
       mensaje: "Servicio no encontrado",
     });
   }
 
-  res.status(200).json(servicio);
+  try {
+    const servicio = await serviciosService.actualizar(req.params.id, {
+      ...(nombre !== undefined && { nombre: nombre.trim() }),
+      ...(descripcion !== undefined && {
+        descripcion: descripcion.trim(),
+      }),
+      ...(precio !== undefined && { precio }),
+    });
+
+    if (!servicio) {
+      return res.status(404).json({
+        mensaje: "Servicio no encontrado",
+      });
+    }
+
+    return res.status(200).json(servicio);
+  } catch (error) {
+    return manejarError(res, error);
+  }
 };
 
-const eliminar = (req, res) => {
-  const eliminado = serviciosService.eliminar(req.params.id);
-
-  if (!eliminado) {
+const eliminar = async (req, res) => {
+  if (!idValido(req.params.id)) {
     return res.status(404).json({
       mensaje: "Servicio no encontrado",
     });
   }
 
-  res.status(200).json({
-    mensaje: "Servicio eliminado correctamente",
-  });
+  try {
+    const eliminado = await serviciosService.eliminar(req.params.id);
+
+    if (!eliminado) {
+      return res.status(404).json({
+        mensaje: "Servicio no encontrado",
+      });
+    }
+
+    return res.status(200).json({
+      mensaje: "Servicio eliminado correctamente",
+    });
+  } catch (error) {
+    return manejarError(res, error);
+  }
 };
 
 module.exports = {
