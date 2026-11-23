@@ -1,0 +1,64 @@
+
+> happy-paws-backend@1.0.0 test
+> node --test
+
+TAP version 13
+# Subtest: GET /api/saludo responde correctamente
+ok 1 - GET /api/saludo responde correctamente
+  ---
+  duration_ms: 138.265779
+  ...
+# Subtest: CRUD completo de productos
+ok 2 - CRUD completo de productos
+  ---
+  duration_ms: 71.757012
+  ...
+# Subtest: Validación de producto inválido
+ok 3 - Validación de producto inválido
+  ---
+  duration_ms: 10.010489
+  ...
+# Subtest: CRUD completo de servicios
+ok 4 - CRUD completo de servicios
+  ---
+  duration_ms: 45.268685
+  ...
+# Subtest: Validación de servicio inválido
+ok 5 - Validación de servicio inválido
+  ---
+  duration_ms: 11.697966
+  ...
+# Subtest: GET /api/saludo responde correctamente
+ok 6 - GET /api/saludo responde correctamente
+  ---
+  duration_ms: 145.585081
+  ...
+# Subtest: CRUD completo de productos
+ok 7 - CRUD completo de productos
+  ---
+  duration_ms: 64.473984
+  ...
+# Subtest: Validación de producto inválido
+ok 8 - Validación de producto inválido
+  ---
+  duration_ms: 7.75826
+  ...
+# Subtest: CRUD completo de servicios
+ok 9 - CRUD completo de servicios
+  ---
+  duration_ms: 38.865476
+  ...
+# Subtest: Validación de servicio inválido
+ok 10 - Validación de servicio inválido
+  ---
+  duration_ms: 9.334626
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1455.441491
