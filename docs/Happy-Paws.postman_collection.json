@@ -1,0 +1,119 @@
+{
+  "info": {
+    "name": "DSY1104 - Node en AWS",
+    "description": "Pruebas Happy Paws - Guia 18",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "express_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "lambda_url",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Express - EC2",
+      "item": [
+        {
+          "name": "Saludo personalizado",
+          "request": {
+            "method": "GET",
+            "url": "{{express_url}}/api/saludo?nombre=Duoc"
+          }
+        },
+        {
+          "name": "Saludo por defecto",
+          "request": {
+            "method": "GET",
+            "url": "{{express_url}}/api/saludo"
+          }
+        },
+        {
+          "name": "Consultar productos",
+          "request": {
+            "method": "GET",
+            "url": "{{express_url}}/api/productos"
+          }
+        },
+        {
+          "name": "Registrar producto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombre\":\"Producto prueba Express\",\"precio\":12990,\"stock\":15}"
+            },
+            "url": "{{express_url}}/api/productos"
+          }
+        },
+        {
+          "name": "Consultar servicios",
+          "request": {
+            "method": "GET",
+            "url": "{{express_url}}/api/servicios"
+          }
+        },
+        {
+          "name": "Ruta inexistente - Error 404",
+          "request": {
+            "method": "GET",
+            "url": "{{express_url}}/api/inexistente"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AWS Lambda",
+      "item": [
+        {
+          "name": "Saludo personalizado",
+          "request": {
+            "method": "GET",
+            "url": "{{lambda_url}}/?nombre=Duoc"
+          }
+        },
+        {
+          "name": "Saludo por defecto",
+          "request": {
+            "method": "GET",
+            "url": "{{lambda_url}}/"
+          }
+        },
+        {
+          "name": "Consultar productos",
+          "request": {
+            "method": "GET",
+            "url": "{{lambda_url}}/api/productos"
+          }
+        },
+        {
+          "name": "Registrar producto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombre\":\"Producto prueba Lambda\",\"precio\":15990,\"stock\":20}"
+            },
+            "url": "{{lambda_url}}/api/productos"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -8,13 +8,15 @@ const pool = new Pool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  ssl: {
-    ca: fs.readFileSync(
-      path.join(__dirname, "../../global-bundle.pem"),
-      "utf8"
-    ),
-    rejectUnauthorized: true,
-  },
+  ssl: process.env.DB_SSL === "true"
+    ? {
+        ca: fs.readFileSync(
+          path.join(__dirname, "../../global-bundle.pem"),
+          "utf8"
+        ),
+        rejectUnauthorized: true,
+      }
+    : false,
 });
 
 module.exports = pool;
