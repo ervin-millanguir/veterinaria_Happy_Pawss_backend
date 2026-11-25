@@ -266,12 +266,11 @@ Las conexiones SSH mediante el puerto 22 finalizaron por tiempo de espera agotad
 
 ### Diagnóstico
 
-- Revisión de direcciones IPv4 públicas.
-- Revisión de subredes.
-- Revisión de grupos de seguridad.
-- Verificación de Internet Gateway.
-- Pruebas de conectividad mediante PowerShell.
-- Intentos de conexión mediante OpenSSH.
+- Intentos fallidos de conexión SSH al puerto 22 desde PowerShell, Visual Studio Code y OpenSSH.
+- Pruebas con `Test-NetConnection` contra las direcciones públicas de las instancias EC2.
+- Revisión de grupos de seguridad y reglas de entrada para SSH.
+- Revisión de subredes públicas, rutas e Internet Gateway.
+- Verificación de las direcciones IP públicas de EC2 y de la red cliente.
 
 Resultados registrados:
 
@@ -284,7 +283,7 @@ PingSucceeded    : False
 Connection timed out
 ```
 
-No fue posible determinar la causa definitiva del incidente.
+Los intentos desde PowerShell y Visual Studio Code no establecieron una sesión SSH; las conexiones finalizaron por tiempo de espera agotado. La revisión no permitió confirmar la causa definitiva. Una posible restricción de la red de Internet utilizada se mantiene como hipótesis por comprobar, no como causa confirmada.
 
 ### 9.2. Plan de contingencia
 
@@ -295,11 +294,16 @@ Las actividades realizadas permitieron:
 - Actualizar Express.
 - Configurar PostgreSQL local.
 - Desarrollar y probar Lambda.
+- Implementar localmente autenticación JWT, autorización por roles y gestión de citas veterinarias en el backend Express.
 - Ejecutar las pruebas automatizadas.
 - Verificar la comunicación entre ambos backends.
 - Preparar el paquete de despliegue.
 - Documentar la arquitectura.
 - Proteger las credenciales.
+
+La última ejecución local informada para el backend obtuvo **22 pruebas automatizadas aprobadas y 0 fallidas**. Este resultado corresponde a la suite actual y no reemplaza los resultados históricos de cinco pruebas documentados en secciones anteriores de este informe.
+
+Se decidió continuar el desarrollo localmente para evitar retrasos mientras se investiga la conectividad con AWS. La implementación local de Express, PostgreSQL, Lambda, autenticación JWT, roles y citas permitió avanzar sin depender de una conexión SSH disponible.
 
 ### 9.3. Resultados generales
 
@@ -307,8 +311,9 @@ Las actividades realizadas permitieron:
 |---|---|
 | Backend Express | Completado localmente |
 | PostgreSQL local | Completado |
-| Pruebas automatizadas | 5 de 5 aprobadas |
+| Pruebas automatizadas | Registro histórico de 5 aprobadas; última ejecución local informada: 22 aprobadas y 0 fallidas |
 | Desarrollo Lambda | Completado localmente |
+| Autenticación JWT, roles y citas | Implementados localmente |
 | Validación cruzada local | Completada |
 | Paquete de despliegue | Preparado |
 | Amazon RDS | Pendiente |
@@ -359,3 +364,24 @@ La conclusión definitiva deberá actualizarse después de comprobar el funciona
 - Documentación de node-postgres (pg).
 
 Las referencias bibliográficas deberán completarse con sus enlaces y fechas de consulta antes de la entrega definitiva.
+
+## 11. Actualización de seguimiento — Guía 19 e INC-001
+
+Esta actualización complementa el registro original de INC-001 y añade el seguimiento de la Guía 19 sin sustituir las secciones previas de este informe ni los resultados históricos.
+
+### Estado del incidente
+
+- Se mantienen los intentos fallidos de conexión SSH a EC2 por el puerto 22 desde PowerShell, Visual Studio Code y OpenSSH.
+- `Test-NetConnection` reportó `TcpTestSucceeded : False`; las conexiones terminaron con `Connection timed out`.
+- Se revisaron grupos de seguridad, subredes públicas, rutas hacia Internet Gateway y direcciones IP públicas, sin identificar una causa definitiva.
+- Una restricción de la red de Internet utilizada es una posibilidad, pero no está confirmada.
+
+### Continuidad y resultados locales
+
+Para evitar retrasos se continuó el trabajo en el entorno local. El backend cuenta con PostgreSQL, Express, Lambda, autenticación JWT, autorización por roles y gestión de citas veterinarias. La última ejecución local informada del backend obtuvo **22 pruebas aprobadas y 0 fallidas**; las cinco pruebas registradas anteriormente en este informe se conservan como antecedente histórico.
+
+### Próximas acciones pendientes
+
+Se propone reintentar la conexión desde otra red, por ejemplo la red de Duoc UC. Este intento permitirá recopilar nueva información, pero no garantiza por sí solo resolver la incidencia. La conexión SSH, el despliegue definitivo en AWS y la integración efectiva con Amazon RDS permanecen pendientes de verificación.
+
+Los diagramas y el detalle de autenticación de la Guía 19 se encuentran en [arquitectura-guia19.md](arquitectura-guia19.md) y [secuencia-autenticacion-guia19.md](secuencia-autenticacion-guia19.md).
