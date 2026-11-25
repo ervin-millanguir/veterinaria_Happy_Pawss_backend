@@ -4,17 +4,19 @@ const validarRegistro = [
   body("nombre")
     .isString()
     .trim()
-    .isLength({ min: 2, max: 100 })
-    .withMessage("El nombre debe tener entre 2 y 100 caracteres"),
+    .isLength({ min: 2, max: 120 })
+    .withMessage("El nombre debe tener entre 2 y 120 caracteres"),
 
   body("apellido")
     .isString()
     .trim()
-    .isLength({ min: 2, max: 100 })
-    .withMessage("El apellido debe tener entre 2 y 100 caracteres"),
+    .isLength({ min: 2, max: 120 })
+    .withMessage("El apellido debe tener entre 2 y 120 caracteres"),
 
   body("rut")
+    .optional({ checkFalsy: true })
     .isString()
+    .bail()
     .trim()
     .customSanitizer(rut => rut.replace(/\./g, "").toUpperCase())
     .matches(/^\d{7,8}-[\dK]$/)
@@ -22,13 +24,15 @@ const validarRegistro = [
 
   body("correo")
     .isString()
+    .bail()
     .trim()
     .isEmail()
-    .isLength({ max: 150 })
+    .isLength({ max: 254 })
     .withMessage("El correo no es válido")
     .customSanitizer(correo => correo.toLowerCase()),
 
   body("telefono")
+    .optional({ checkFalsy: true })
     .isString()
     .trim()
     .matches(/^\+?\d{8,15}$/)

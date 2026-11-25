@@ -3,7 +3,8 @@ const usuariosRepository = require("../repositories/usuarios.repository");
 
 const registrar = async (req, res) => {
   try {
-    const usuario = await authService.registrar(req.body);
+    const rolRegistro = req.rolRegistro || "CLIENTE";
+    const usuario = await authService.registrar(req.body, rolRegistro);
 
     return res.status(201).json({
       mensaje: "Usuario registrado correctamente",
@@ -34,9 +35,7 @@ const iniciarSesion = async (req, res) => {
 
 const obtenerPerfil = async (req, res) => {
   try {
-    const usuario = await usuariosRepository.buscarPorId(
-      req.usuario.id
-    );
+    const usuario = await usuariosRepository.buscarPorId(req.usuario.id);
 
     if (!usuario || !usuario.activo) {
       return res.status(401).json({
@@ -44,7 +43,10 @@ const obtenerPerfil = async (req, res) => {
       });
     }
 
-    return res.status(200).json(usuario);
+    return res.status(200).json({
+      ...usuario,
+      usuario
+    });
   } catch (error) {
     return manejarError(error, res);
   }

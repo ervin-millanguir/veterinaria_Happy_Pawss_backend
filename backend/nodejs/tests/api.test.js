@@ -4,7 +4,20 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { randomUUID } = require("node:crypto");
 
-process.env.DB_NAME = "happy_paws_test";
+if (!["localhost", "127.0.0.1"].includes(process.env.DB_HOST)) {
+  throw new Error(
+    "Pruebas canceladas: DB_HOST debe ser localhost o 127.0.0.1"
+  );
+}
+
+if (process.env.DB_NAME !== "happy_paws_test") {
+  throw new Error(
+    "Pruebas canceladas: DB_NAME debe ser happy_paws_test"
+  );
+}
+
+process.env.JWT_ISSUER = process.env.JWT_ISSUER || "happy-paws-api";
+process.env.JWT_AUDIENCE = process.env.JWT_AUDIENCE || "happy-paws-client";
 
 const app = require("../src/app");
 const pool = require("../src/config/database");
@@ -15,6 +28,8 @@ let adminToken;
 let clienteToken;
 let segundoClienteToken;
 let usuarioRegistradoId;
+let usuarioCrudId;
+let usuarioCrudRut;
 let tokenRegistrado;
 let servicioPruebaId;
 let citaPruebaId;
@@ -168,7 +183,9 @@ async function request(ruta, metodo = "GET", datos, token) {
 
   return {
     status: respuesta.status,
-    body: await respuesta.json()
+    body: respuesta.status === 204
+      ? null
+      : await respuesta.json()
   };
 }
 
@@ -651,4 +668,247 @@ test("Impedir que un cliente actualice una cita", async () => {
   );
 
   assert.equal(respuesta.status, 403);
+});
+
+// ========================================
+// TEST 23: LISTAR USUARIOS
+// ========================================
+
+test("Listar usuarios requiere rol administrador", async () => {
+  const respuesta = await request(
+    "/api/usuarios",
+    "GET",
+    undefined,
+    adminToken
+  );
+
+  assert.equal(respuesta.status, 200);
+  assert.ok(Array.isArray(respuesta.body));
+  assert.ok(
+    respuesta.body.every(usuario =>
+      !("contrasena" in usuario) &&
+      !("contrasena_hash" in usuario)
+    )
+  );
+});
+
+// ========================================
+// TEST 24: CREAR USUARIO DESDE EL CRUD
+// ========================================
+
+test("Crear usuario administrativo conserva RUT y teléfono", async () => {
+  const rut = `${Math.floor(10000000 + Math.random() * 90000000)}-K`;
+  const respuesta = await request(
+    "/api/usuarios",
+    "POST",
+    {
+      nombre: "Usuario CRUD",
+      apellido: "Prueba",
+      rut,
+      correo: `${randomUUID()}@example.com`,
+      telefono: "+56912345678",
+      contrasena: randomUUID(),
+      rol: "dueno_mascota"
+    },
+    adminToken
+  );
+
+  assert.equal(respuesta.status, 201);
+  assert.equal(respuesta.body.rut, rut);
+  assert.equal(respuesta.body.telefono, "+56912345678");
+  assert.equal(respuesta.body.rol, "dueno_mascota");
+  assert.equal(respuesta.body.contrasena, undefined);
+  assert.equal(respuesta.body.contrasena_hash, undefined);
+
+  usuarioCrudId = respuesta.body.id;
+  usuarioCrudRut = rut;
+  usuariosPrueba.push(usuarioCrudId);
+});
+
+// ========================================
+// TEST 25: PROPIETARIO ACTUALIZA SU PERFIL
+// ========================================
+
+test("Usuario actualiza datos propios sin perder RUT", async () => {
+  const consulta = await request(
+    `/api/usuarios/${usuarioRegistradoId}`,
+    "GET",
+    undefined,
+    tokenRegistrado
+  );
+
+  assert.equal(consulta.status, 200);
+  assert.equal(consulta.body.rut, datosRegistro.rut);
+  assert.equal(consulta.body.telefono, datosRegistro.telefono);
+
+  const actualizar = await request(
+    `/api/usuarios/${usuarioRegistradoId}`,
+    "PUT",
+    { telefono: "+56987654321" },
+    tokenRegistrado
+  );
+
+  assert.equal(actualizar.status, 200);
+  assert.equal(actualizar.body.rut, datosRegistro.rut);
+  assert.equal(actualizar.body.telefono, "+56987654321");
+
+  const modificarRol = await request(
+    `/api/usuarios/${usuarioRegistradoId}`,
+    "PUT",
+    { rol: "ADMIN" },
+    tokenRegistrado
+  );
+
+  assert.equal(modificarRol.status, 403);
+});
+
+// ========================================
+// TEST 26: ADMIN ACTUALIZA Y DESACTIVA USUARIO
+// ========================================
+
+test("Administrador actualiza rol y desactiva usuario", async () => {
+  const actualizar = await request(
+    `/api/usuarios/${usuarioCrudId}`,
+    "PUT",
+    { rol: "CLIENTE" },
+    adminToken
+  );
+
+  assert.equal(actualizar.status, 200);
+  assert.equal(actualizar.body.rol, "CLIENTE");
+  assert.equal(actualizar.body.rut, usuarioCrudRut);
+  assert.equal(actualizar.body.telefono, "+56912345678");
+
+  const desactivar = await request(
+    `/api/usuarios/${usuarioCrudId}`,
+    "DELETE",
+    undefined,
+    adminToken
+  );
+
+  assert.equal(desactivar.status, 204);
+
+  const resultado = await pool.query(
+    "SELECT activo FROM usuarios WHERE id = $1",
+    [usuarioCrudId]
+  );
+
+  assert.equal(resultado.rows[0].activo, false);
+});
+
+// ========================================
+// TEST 27: REGISTRO EP3 COMPATIBLE
+// ========================================
+
+test("Ruta EP3 registra usuario con rol de dueño sin RUT ni teléfono", async () => {
+  const correo = `${randomUUID()}@example.com`;
+  const contrasena = randomUUID();
+  const respuesta = await request(
+    "/api/auth/registro",
+    "POST",
+    {
+      nombre: "Dueño",
+      apellido: "Prueba",
+      correo,
+      contrasena
+    }
+  );
+
+  assert.equal(respuesta.status, 201);
+  assert.equal(respuesta.body.usuario.rol, "dueno_mascota");
+  assert.equal(respuesta.body.usuario.rut, null);
+  assert.equal(respuesta.body.usuario.telefono, null);
+  assert.equal(respuesta.body.usuario.contrasena_hash, undefined);
+  usuariosPrueba.push(respuesta.body.usuario.id);
+
+  const usuarioDB = await pool.query(
+    `SELECT contrasena_hash, contrasena
+     FROM usuarios
+     WHERE id = $1`,
+    [respuesta.body.usuario.id]
+  );
+
+  assert.equal(
+    usuarioDB.rows[0].contrasena_hash,
+    usuarioDB.rows[0].contrasena
+  );
+  assert.ok(await bcrypt.compare(contrasena, usuarioDB.rows[0].contrasena_hash));
+
+  const login = await request(
+    "/api/auth/login",
+    "POST",
+    { correo, contrasena }
+  );
+  assert.equal(login.status, 200);
+
+  const cita = await request(
+    "/api/citas",
+    "POST",
+    { ...datosCitaPrueba(), hora: "12:00" },
+    login.body.token
+  );
+  assert.equal(cita.status, 201);
+  assert.equal(cita.body.usuarioId, respuesta.body.usuario.id);
+});
+
+// ========================================
+// TEST 28: SWAGGER COMPATIBLE
+// ========================================
+
+test("Swagger responde en las rutas anterior y EP3", async () => {
+  const anterior = await request("/api-docs.json");
+  const ep3 = await request("/api/docs.json");
+
+  assert.equal(anterior.status, 200);
+  assert.equal(ep3.status, 200);
+  assert.ok(anterior.body.paths["/api/citas"]);
+  assert.ok(ep3.body.paths["/api/usuarios"]);
+
+  const [paginaAnterior, paginaEP3] = await Promise.all([
+    fetch(`${baseURL}/api-docs`),
+    fetch(`${baseURL}/api/docs`)
+  ]);
+  assert.equal(paginaAnterior.status, 200);
+  assert.equal(paginaEP3.status, 200);
+});
+
+test("Rechazar JWT sin expiración, con emisor o audiencia incorrectos", async () => {
+  const opcionesValidas = {
+    algorithm: "HS256",
+    expiresIn: "1h",
+    issuer: process.env.JWT_ISSUER,
+    audience: process.env.JWT_AUDIENCE
+  };
+  const tokensInvalidos = [
+    jwt.sign(
+      { sub: String(usuarioRegistradoId), rol: "CLIENTE" },
+      process.env.JWT_SECRET,
+      {
+        algorithm: "HS256",
+        issuer: process.env.JWT_ISSUER,
+        audience: process.env.JWT_AUDIENCE
+      }
+    ),
+    jwt.sign(
+      { sub: String(usuarioRegistradoId), rol: "CLIENTE" },
+      process.env.JWT_SECRET,
+      { ...opcionesValidas, issuer: "otro-emisor" }
+    ),
+    jwt.sign(
+      { sub: String(usuarioRegistradoId), rol: "CLIENTE" },
+      process.env.JWT_SECRET,
+      { ...opcionesValidas, audience: "otra-audiencia" }
+    )
+  ];
+
+  for (const token of tokensInvalidos) {
+    const respuesta = await request(
+      "/api/auth/me",
+      "GET",
+      undefined,
+      token
+    );
+
+    assert.equal(respuesta.status, 401);
+  }
 });

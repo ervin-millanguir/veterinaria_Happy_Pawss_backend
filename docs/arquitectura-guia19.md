@@ -60,19 +60,19 @@ El backend se inicia desde `backend/nodejs/server.js`. La aplicación Express re
 | Cliente web | React en el repositorio externo [evaluacion_2_definitiva](https://github.com/ervin-millanguir/evaluacion_2_definitiva) | Interfaz existente cuya integración efectiva con esta API REST está pendiente. |
 | Aplicación HTTP | Node.js y Express | Recibe solicitudes, registra middlewares y monta rutas de API y documentación. |
 | Rutas | `backend/nodejs/src/routes/` | Asocia métodos y rutas HTTP con controladores y aplica autenticación, roles y validaciones cuando corresponde. |
-| Autenticación | `src/middlewares/auth.middleware.js` | Verifica el JWT y obtiene el usuario activo antes de permitir el acceso a rutas protegidas. |
+| Autenticación | `src/middleware/auth.middleware.js` | Verifica JWT HS256 y obtiene el rol vigente del usuario activo; `src/middlewares/auth.middleware.js` reexporta este middleware para compatibilidad. |
 | Autorización | `autorizarRoles` en `auth.middleware.js` | Limita acciones según el rol del usuario autenticado, por ejemplo `CLIENTE` o `ADMIN`. |
 | Validadores | `backend/nodejs/src/validators/` | Comprueban los datos de registro, inicio de sesión y citas; informan errores de entrada con HTTP 400. |
 | Controladores | `backend/nodejs/src/controllers/` | Atienden solicitudes y respuestas HTTP, delegando el trabajo de negocio a los servicios. |
 | Servicios | `backend/nodejs/src/services/` | Implementan las operaciones de negocio de autenticación, citas, productos y servicios. |
 | Repositorios | `backend/nodejs/src/repositories/` | Encapsulan consultas de usuarios y citas. Los servicios de productos y servicios consultan `pg` directamente; no existe un repositorio separado para esos módulos. |
 | Persistencia | PostgreSQL y `backend/nodejs/src/config/database.js` | Almacena las cinco tablas del sistema y recibe consultas mediante un pool de conexiones. |
-| Documentación de API | Swagger UI y OpenAPI | Publica la especificación y la interfaz en `/api-docs`; la especificación JSON está disponible en `/api-docs.json`. |
+| Documentación de API | Swagger UI y OpenAPI | Publica la interfaz en `/api-docs` y `/api/docs`, y la especificación JSON en `/api-docs.json` y `/api/docs.json`. |
 | Pruebas automatizadas | Node.js Test Runner y `backend/nodejs/tests/api.test.js` | Comprueba respuestas de API, autenticación, permisos y operaciones de negocio usando una base de pruebas configurada separadamente. |
 
 ### 2.2. Tablas de PostgreSQL
 
-Las definiciones están distribuidas entre los scripts SQL de `backend/nodejs/database/`: `auth.sql`, `schema.sql` y `citas.sql`. En conjunto, describen estas cinco tablas:
+Las definiciones están distribuidas entre los scripts SQL de `backend/nodejs/database/`: `auth.sql`, `usuarios_roles.sql`, `schema.sql` y `citas.sql`. En conjunto, describen estas cinco tablas:
 
 | Tabla | Responsabilidad | Relaciones relevantes |
 |---|---|---|
@@ -91,8 +91,10 @@ La clasificación siguiente corresponde a las rutas registradas en los archivos 
 | Público | `GET /api/saludo` | Comprobación de la API. |
 | Público | `GET /api/productos` y `GET /api/productos/:id` | Consulta del catálogo de productos. |
 | Público | `GET /api/servicios` y `GET /api/servicios/:id` | Consulta del catálogo de servicios. |
-| Público | `POST /api/auth/register` y `POST /api/auth/login` | Registro de cuenta e inicio de sesión. El registro asigna el rol `CLIENTE`. |
+| Público | `POST /api/auth/register`, `POST /api/auth/registro` y `POST /api/auth/login` | Registro e inicio de sesión. Las rutas de registro asignan respectivamente `CLIENTE` y `dueno_mascota`; ambos roles se autorizan como cliente. |
 | Protegido | `GET /api/auth/me` | Requiere autenticación JWT. |
+| Protegido, propietario o `ADMIN` | `GET /api/usuarios/:id` y `PUT /api/usuarios/:id` | Consulta o modifica datos de usuario; solo `ADMIN` puede cambiar rol o estado. |
+| Protegido, `ADMIN` | `GET /api/usuarios`, `POST /api/usuarios`, `DELETE /api/usuarios/:id` y `PATCH /api/usuarios/:id/desactivar` | Administra usuarios; las bajas son lógicas. |
 | Protegido, `ADMIN` | `POST /api/productos`, `PUT /api/productos/:id` y `DELETE /api/productos/:id` | Administración de productos. |
 | Protegido, `ADMIN` | `POST /api/servicios`, `PUT /api/servicios/:id` y `DELETE /api/servicios/:id` | Administración de servicios. |
 | Protegido, `CLIENTE` | `POST /api/citas` | Registra una cita para el usuario autenticado. |
@@ -101,7 +103,7 @@ La clasificación siguiente corresponde a las rutas registradas en los archivos 
 | Protegido, `CLIENTE` o `ADMIN` | `GET /api/citas/:id` | El servicio también comprueba que un cliente solo consulte sus propias citas. |
 | Protegido, `ADMIN` | `PATCH /api/citas/:id/estado` | Cambia el estado de una cita. |
 
-La interfaz Swagger se sirve en `/api-docs` y el documento JSON en `/api-docs.json`; ambas rutas se registran en la aplicación Express.
+La interfaz Swagger se sirve en `/api-docs` y `/api/docs`; el documento JSON está en `/api-docs.json` y `/api/docs.json`. Helmet protege las respuestas, el rate limit restringe los intentos de inicio de sesión y CORS admite solo los orígenes configurados.
 
 ## 3. Componentes y relaciones
 
@@ -165,18 +167,18 @@ React (pendiente) -> HTTP REST -> Express y rutas -> JWT y rol CLIENTE
 
 ## 5. Documentación y pruebas
 
-La especificación OpenAPI se genera con `swagger-jsdoc` a partir de anotaciones en las rutas. `swagger-ui-express` publica la interfaz en `/api-docs`, y Express entrega el JSON de la especificación en `/api-docs.json`. La configuración define OpenAPI 3.0.3 y el esquema de seguridad Bearer JWT.
+La especificación OpenAPI combina las rutas anotadas con las rutas de compatibilidad EP3. `swagger-ui-express` publica la interfaz en `/api-docs` y `/api/docs`; Express entrega el JSON en `/api-docs.json` y `/api/docs.json`. La configuración define OpenAPI 3.0.3 y el esquema de seguridad Bearer JWT.
 
-Las pruebas usan el ejecutor integrado de Node.js y se ubican en `backend/nodejs/tests/api.test.js`. El archivo actual contiene escenarios de API que incluyen autenticación, autorización, registros y operaciones de citas, junto con productos y servicios. El script `npm test` requiere el archivo local `.env` y se configura para usar `happy_paws_test`.
+Las pruebas usan el ejecutor integrado de Node.js y se ubican en `backend/nodejs/tests/api.test.js`. El archivo actual contiene escenarios de API que incluyen autenticación, autorización, registros y operaciones de citas, junto con productos y servicios. El script `npm test` usa `.env.test`, separado de `.env`; antes de importar la aplicación, la suite exige `DB_HOST=localhost` o `127.0.0.1` y `DB_NAME=happy_paws_test`.
 
-La última ejecución local informada para la suite obtuvo **22 pruebas aprobadas y 0 fallidas**. Este resultado corresponde a la ejecución más reciente reportada y se distingue de `evidencias/pruebas-automatizadas.txt`, que conserva una evidencia histórica anterior de **10 pruebas aprobadas y 0 fallidas**. No se ejecutó nuevamente la suite al actualizar este documento, para evitar cualquier modificación de la base de datos de pruebas.
+La evidencia de Guía 19 conserva el resultado previo de **22 pruebas aprobadas y 0 fallidas** en `evidencias/pruebas-automatizadas-guia19.txt`; `evidencias/pruebas-automatizadas.txt` conserva el histórico anterior de **10 aprobadas y 0 fallidas**. La validación funcional de integración del 25 de noviembre de 2026 ejecutó la suite ampliada con **29 aprobadas y 0 fallidas**. La suite usa `.env.test` y exige que `DB_HOST` sea `localhost` o `127.0.0.1` y `DB_NAME` sea `happy_paws_test` antes de abrir una conexión.
 
 ## 6. Estado de implementación
 
 | Estado | Elementos |
 |---|---|
-| Implementado en el backend del repositorio | API Node.js/Express; rutas de autenticación, productos, servicios y citas; middleware JWT y roles; validadores; controladores y servicios; repositorios de usuarios y citas; consultas parametrizadas; configuración de conexión PostgreSQL; scripts con las cinco tablas; documentación Swagger; pruebas automatizadas. |
-| Evidencia local disponible | La última ejecución local informada obtuvo 22 pruebas aprobadas y 0 fallidas. El archivo `evidencias/pruebas-automatizadas.txt` conserva un resultado histórico distinto de 10 aprobadas y 0 fallidas. Ninguno de estos resultados demuestra por sí mismo un despliegue remoto. |
+| Implementado en el backend del repositorio | API Node.js/Express; rutas de autenticación, usuarios, productos, servicios y citas; middleware JWT y roles; validadores; controladores y servicios; repositorios de usuarios y citas; consultas parametrizadas; configuración de conexión PostgreSQL; scripts para las cinco tablas; documentación Swagger; suite automatizada ampliada. |
+| Evidencia local disponible | Suite integrada ejecutada el 25-11-2026: 29 aprobadas y 0 fallidas. Los resultados históricos de Guía 19 (22/0) y del registro anterior (10/0) se conservan. Ninguno demuestra por sí mismo un despliegue remoto. |
 | Pendiente | Integrar efectivamente el frontend React existente en [evaluacion_2_definitiva](https://github.com/ervin-millanguir/evaluacion_2_definitiva) con esta API; desplegar y verificar la arquitectura completa en AWS, incluida la integración efectiva con Amazon RDS. |
 
 La documentación anterior del proyecto menciona una implementación inicial de Express en EC2. Sin embargo, también identifica como pendientes la conectividad y la integración definitiva con RDS. Por ello, esta guía no considera el despliegue completo en AWS como verificado. La Guía 18 existente en `docs/arquitectura.md` se conserva sin modificaciones.
@@ -185,7 +187,7 @@ La documentación anterior del proyecto menciona una implementación inicial de 
 
 - [Aplicación Express](../backend/nodejs/src/app.js)
 - [Rutas de citas](../backend/nodejs/src/routes/citas.routes.js)
-- [Middleware de autenticación y roles](../backend/nodejs/src/middlewares/auth.middleware.js)
+- [Middleware de autenticación y roles](../backend/nodejs/src/middleware/auth.middleware.js)
 - [Validaciones de citas](../backend/nodejs/src/validators/citas.validator.js)
 - [Controlador de citas](../backend/nodejs/src/controllers/citas.controller.js)
 - [Servicio de citas](../backend/nodejs/src/services/citas.service.js)
@@ -194,6 +196,8 @@ La documentación anterior del proyecto menciona una implementación inicial de 
 - [Especificación Swagger](../backend/nodejs/src/docs/swagger.js)
 - [Esquema de productos y servicios](../backend/nodejs/database/schema.sql)
 - [Esquema de roles y usuarios](../backend/nodejs/database/auth.sql)
+- [Migración de compatibilidad de usuarios y roles](../backend/nodejs/database/usuarios_roles.sql)
 - [Esquema de citas](../backend/nodejs/database/citas.sql)
 - [Pruebas automatizadas de API](../backend/nodejs/tests/api.test.js)
+- [Evidencia reportada de Guía 19](../evidencias/pruebas-automatizadas-guia19.txt)
 - [Evidencia archivada de pruebas](../evidencias/pruebas-automatizadas.txt)

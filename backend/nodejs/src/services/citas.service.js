@@ -1,4 +1,5 @@
 const citasRepository = require("../repositories/citas.repository");
+const { esAdministrador } = require("../utils/roles");
 
 const crearError = (mensaje, status) => {
   const error = new Error(mensaje);
@@ -41,7 +42,7 @@ const buscarPorId = async (id, usuario) => {
   }
 
   if (
-    usuario.rol !== "ADMIN" &&
+    !esAdministrador(usuario.rol) &&
     Number(cita.usuarioId) !== Number(usuario.id)
   ) {
     throw crearError("No tienes permiso para consultar esta cita", 403);

@@ -1,0 +1,67 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: happy_paws_test
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d happy_paws_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/nodejs/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: backend/nodejs
+        run: npm ci
+
+      - name: Configurar entorno de pruebas efímero
+        working-directory: backend/nodejs
+        run: |
+          node -e "const fs = require('node:fs'); const crypto = require('node:crypto'); const env = ['PORT=3000', 'DB_HOST=127.0.0.1', 'DB_PORT=5432', 'DB_USER=postgres', 'DB_PASSWORD=', 'DB_NAME=happy_paws_test', 'DB_SSL=false', 'JWT_SECRET=' + crypto.randomBytes(32).toString('hex'), 'JWT_ISSUER=happy-paws-api', 'JWT_AUDIENCE=happy-paws-client', 'JWT_EXPIRES_IN=1h', 'CORS_ORIGINS=http://localhost:5173']; fs.writeFileSync('.env.test', env.join('\n') + '\n', { mode: 0o600 });"
+
+      - name: Preparar esquema aislado de pruebas
+        working-directory: backend/nodejs
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGDATABASE: happy_paws_test
+        run: |
+          psql -v ON_ERROR_STOP=1 -f database/auth.sql
+          psql -v ON_ERROR_STOP=1 -f database/usuarios_roles.sql
+          psql -v ON_ERROR_STOP=1 -f database/schema.sql
+          psql -v ON_ERROR_STOP=1 -f database/citas.sql
+
+      - name: Ejecutar pruebas de API
+        working-directory: backend/nodejs
+        run: npm test
