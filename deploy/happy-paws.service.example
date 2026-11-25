@@ -1,0 +1,21 @@
+[Unit]
+Description=Happy Paws Node.js API
+After=network.target
+
+[Service]
+Type=simple
+User=happy-paws
+Group=happy-paws
+WorkingDirectory=/opt/happy-paws/backend/nodejs
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/happy-paws/backend.env
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

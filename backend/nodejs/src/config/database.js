@@ -1,9 +1,19 @@
 const { Pool } = require('pg');
 const fs = require('fs');
 const sslActivo = process.env.DB_SSL === 'true';
-const ssl = sslActivo ? { rejectUnauthorized: true,
-  ...(process.env.DB_CA_PATH ? { ca: fs.readFileSync(process.env.DB_CA_PATH, 'utf8') } : {})
-} : false;
+let ssl = false;
+
+if (sslActivo) {
+  if (!process.env.DB_CA_PATH) {
+    throw new Error('DB_CA_PATH es obligatorio cuando DB_SSL=true');
+  }
+
+  ssl = {
+    ca: fs.readFileSync(process.env.DB_CA_PATH, 'utf8'),
+    rejectUnauthorized: true
+  };
+}
+
 const pool = new Pool({
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT || 5432),

@@ -1,3 +1,5 @@
+const path = require('path');
+const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const esquema = {
   openapi: '3.0.3',
@@ -13,9 +15,15 @@ const esquema = {
       Login: { type:'object', required:['correo','contrasena'], properties: {
         correo:{type:'string',format:'email'},contrasena:{type:'string',format:'password'} } },
       Usuario: { type:'object', properties: { id:{type:'integer'}, nombre:{type:'string'}, apellido:{type:'string'},
-        correo:{type:'string'}, rol:{type:'string',enum:['administrador','recepcionista','dueno_mascota']}, activo:{type:'boolean'} } },
-      CrearUsuario: { allOf:[ { $ref:'#/components/schemas/Registro' }, {type:'object', properties:{rol:{type:'string',enum:['administrador','recepcionista','dueno_mascota']}}} ] },
-      EditarUsuario: { type:'object', properties: { nombre:{type:'string'},apellido:{type:'string'},correo:{type:'string',format:'email'},rol:{type:'string',enum:['administrador','recepcionista','dueno_mascota']},activo:{type:'boolean'} } },
+        rut:{type:'string'}, correo:{type:'string'}, telefono:{type:'string'},
+        rol:{type:'string',enum:['ADMIN','CLIENTE','RECEPCIONISTA','administrador','recepcionista','dueno_mascota']}, activo:{type:'boolean'} } },
+      CrearUsuario: { allOf:[ { $ref:'#/components/schemas/Registro' }, {type:'object', properties:{
+        rut:{type:'string'}, telefono:{type:'string'},
+        rol:{type:'string',enum:['ADMIN','CLIENTE','RECEPCIONISTA','administrador','recepcionista','dueno_mascota']} }} ] },
+      EditarUsuario: { type:'object', properties: {
+        nombre:{type:'string'},apellido:{type:'string'},rut:{type:'string'},
+        correo:{type:'string',format:'email'},telefono:{type:'string'},
+        rol:{type:'string',enum:['ADMIN','CLIENTE','RECEPCIONISTA','administrador','recepcionista','dueno_mascota']},activo:{type:'boolean'} } },
       Producto: { type:'object',properties:{nombre:{type:'string'},precio:{type:'number'},stock:{type:'integer'}} },
       Servicio: { type:'object',properties:{nombre:{type:'string'},descripcion:{type:'string'},precio:{type:'number'}} },
     }
@@ -27,6 +35,7 @@ const body = (ref) => ({ required:true, content:{'application/json':{ schema:{$r
 const out = (desc) => ({ description:desc });
 const idparam = [{ in:'path', name:'id',required:true,schema:{type:'integer'} }];
 p['/auth/registro'] = {post:{tags:['Autenticación'],summary:'Registro público: rol dueno_mascota',requestBody:body('Registro'),responses:{201:out('Cuenta creada'),400:out('Datos inválidos'),409:out('Correo repetido')}}};
+p['/auth/register'] = p['/auth/registro'];
 p['/auth/login'] = {post:{tags:['Autenticación'],summary:'Iniciar sesión y obtener JWT',requestBody:body('Login'),responses:{200:out('JWT y datos de usuario'),401:out('Credenciales incorrectas')}}};
 p['/auth/me'] = {get:{tags:['Autenticación'],summary:'Consultar sesión actual',security:[{bearerAuth:[]}],responses:{200:out('Sesión válida'),401:out('JWT faltante o inválido')}}};
 p['/usuarios'] = {
@@ -49,4 +58,43 @@ for (const [recurso,sch] of [['productos','Producto'],['servicios','Servicio']])
   delete:{tags:['Catálogo'],summary:'Eliminar (admin)',security:[{bearerAuth:[]}],parameters:idparam,responses:{200:out('Eliminado')}}
  };
 }
-module.exports = { swaggerUi, esquema };
+
+const generado = swaggerJsdoc({
+  definition: {
+    openapi: esquema.openapi,
+    info: esquema.info,
+    servers: [{ url: '/', description: 'API REST Happy Paws' }],
+    components: esquema.components
+  },
+  apis: [path.join(__dirname, '../routes/*.js').replace(/\\/g, '/')]
+});
+
+const rutasEP3 = Object.fromEntries(
+  Object.entries(esquema.paths).map(([ruta, definicion]) => [
+    `/api${ruta}`,
+    definicion
+  ])
+);
+
+const especificacionUnificada = {
+  ...generado,
+  servers: [{ url: '/', description: 'API REST Happy Paws' }],
+  tags: [
+    ...(generado.tags || []),
+    { name: 'Usuarios', description: 'Gestión de cuentas y perfiles' }
+  ],
+  components: {
+    ...generado.components,
+    ...esquema.components,
+    schemas: esquema.components.schemas
+  },
+  paths: {
+    ...generado.paths,
+    ...rutasEP3
+  }
+};
+
+module.exports = {
+  swaggerUi,
+  esquema: especificacionUnificada
+};

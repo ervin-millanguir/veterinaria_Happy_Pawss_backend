@@ -6,7 +6,7 @@
 
 ## 1. Registro de usuario
 
-El endpoint público `POST /api/auth/register` valida los datos, comprueba que correo y RUT no estén duplicados y genera el hash de la contraseña con bcrypt usando 12 rondas. Al persistir el nuevo usuario, el repositorio asigna el rol `CLIENTE` mediante una consulta al catálogo de roles. La respuesta no incluye el hash.
+Los endpoints públicos `POST /api/auth/register` y `POST /api/auth/registro` comparten validaciones, verifican correo y RUT duplicados y generan el hash con bcrypt usando 12 rondas. El primero asigna `CLIENTE`; el alias EP3 `/registro` asigna `dueno_mascota`. Ambos roles se normalizan como cliente al autorizar. La respuesta no incluye el hash.
 
 <!-- mermaid-checked: every participant uses `participant Id as "Label"`, no \n in aliases/messages/notes, every alt/opt/loop closed by end, no `:` inside any alias -->
 ```mermaid
@@ -19,7 +19,7 @@ sequenceDiagram
     participant Repo as "UsuariosRepository"
     participant DB as "PostgreSQL"
 
-    Cliente->>API: POST /api/auth/register
+    Cliente->>API: POST /api/auth/register o /api/auth/registro
     API->>Validador: validarRegistro y verificarValidaciones
     alt Datos inválidos
         Validador-->>API: HTTP 400 con errores de validación
@@ -38,7 +38,7 @@ sequenceDiagram
         else Datos únicos
             Servicio->>Servicio: bcrypt.hash contraseña con 12 rondas
             Servicio->>Repo: crear usuario con hash
-            Repo->>DB: INSERT y asignar rol CLIENTE
+            Repo->>DB: INSERT con rol asignado por la ruta
             DB-->>Repo: usuario creado sin hash
             Repo-->>Servicio: datos públicos del usuario
             Servicio-->>Controlador: usuario registrado
@@ -48,7 +48,7 @@ sequenceDiagram
     end
 ```
 
-La asignación del rol se realiza en `usuarios.repository.js`: la inserción obtiene el identificador de `roles` cuyo nombre es `CLIENTE`. Las restricciones únicas de la base de datos también permiten detectar una colisión de correo o RUT ocurrida entre la comprobación y la inserción; el servicio la transforma en HTTP 409.
+La asignación del rol se fija en `auth.routes.js` y la inserción obtiene el identificador del catálogo `roles`. Las restricciones únicas de la base de datos también permiten detectar una colisión de correo o RUT ocurrida entre la comprobación y la inserción; el servicio la transforma en HTTP 409.
 
 ## 2. Inicio de sesión exitoso y emisión del JWT
 
@@ -84,7 +84,7 @@ sequenceDiagram
     API-->>Cliente: token y datos de usuario
 ```
 
-El token se firma con algoritmo **HS256**. Su duración predeterminada es **una hora** (`1h`), configurable mediante `JWT_EXPIRES_IN`. El contenido firmado incluye el identificador en `sub` y el rol del usuario; la firma usa el secreto configurado en `JWT_SECRET`, además de los valores de emisor y audiencia.
+El token se firma con algoritmo **HS256**. Su duración predeterminada es **una hora** (`1h`), configurable mediante `JWT_EXPIRES_IN`. El contenido incluye `sub`, `id` para compatibilidad con el cliente EP3, el rol, el emisor y la audiencia. La firma usa el secreto configurado en `JWT_SECRET`, que nunca se incorpora como claim al token.
 
 ## 3. Inicio de sesión con credenciales incorrectas
 
@@ -131,7 +131,7 @@ El inicio de sesión también está limitado por un middleware de tasa: el backe
 
 ## 4. Acceso autorizado a una ruta protegida
 
-El ejemplo representa `GET /api/citas/:id`, que permite los roles `CLIENTE` y `ADMIN`. Tras verificar el token, el middleware busca al usuario en la base de datos y exige que esté activo. El servicio de citas comprueba la propiedad del registro: un administrador puede consultarlo y un cliente solo puede consultar una cita cuyo `usuarioId` corresponda a su propio usuario.
+El ejemplo representa `GET /api/citas/:id`, que permite los roles `CLIENTE`/`dueno_mascota` y `ADMIN`/`administrador`. Tras verificar el token, el middleware busca al usuario en la base de datos y exige que esté activo; el rol se obtiene del registro actual y no se confía en el claim de rol del JWT. El servicio de citas comprueba la propiedad: un administrador puede consultar cualquier cita y un cliente solo puede consultar una cita propia.
 
 <!-- mermaid-checked: every participant uses `participant Id as "Label"`, no \n in aliases/messages/notes, every alt/opt/loop closed by end, no `:` inside any alias -->
 ```mermaid
@@ -180,7 +180,7 @@ La verificación JWT precede a la autorización por rol. En las rutas de citas s
 
 ## 5. Rechazo de un token inválido o expirado
 
-Para aceptar una solicitud protegida, `jsonwebtoken.verify` valida la firma con `JWT_SECRET`, restringe el algoritmo a HS256 y comprueba expiración, emisor y audiencia. Después, el middleware exige un `sub` con formato de identificador y un `exp` entero. Los errores de verificación se responden con HTTP 401, antes de consultar el usuario o ejecutar el controlador.
+Para aceptar una solicitud protegida, `jsonwebtoken.verify` valida la firma con `JWT_SECRET`, restringe el algoritmo a HS256 y comprueba expiración, emisor y audiencia. El middleware requiere además un `exp` entero futuro y un identificador válido en `sub` o, para compatibilidad, en `id`. Los errores se responden con HTTP 401 antes de consultar al usuario o ejecutar el controlador.
 
 <!-- mermaid-checked: every participant uses `participant Id as "Label"`, no \n in aliases/messages/notes, every alt/opt/loop closed by end, no `:` inside any alias -->
 ```mermaid
@@ -251,10 +251,10 @@ sequenceDiagram
 | Algoritmo | HS256 al firmar; el middleware permite explícitamente únicamente HS256 al verificar. |
 | Duración | Una hora por defecto (`1h`), con opción de configurar `JWT_EXPIRES_IN`. |
 | Firma | `JWT_SECRET` se utiliza como secreto al firmar y verificar el token. |
-| Emisor y audiencia | `JWT_ISSUER` y `JWT_AUDIENCE` se incluyen al firmar y se exigen al verificar. |
-| Expiración y claims | `jsonwebtoken.verify` rechaza tokens expirados; el middleware también requiere `exp` entero y un `sub` con formato válido. |
-| Identidad vigente | El middleware consulta el usuario asociado a `sub` y rechaza cuentas inexistentes o inactivas. |
-| Autorización | Las rutas aplican roles explícitos; el servicio de consulta de citas verifica además la propiedad del registro. |
+| Emisor y audiencia | `JWT_ISSUER` y `JWT_AUDIENCE` se incluyen y se validan; si faltan, se usan los valores predeterminados `happy-paws-api` y `happy-paws-client`. |
+| Expiración y claims | `jsonwebtoken.verify` rechaza tokens expirados; el middleware exige un `exp` entero futuro y un identificador válido en `sub` o `id`. |
+| Identidad vigente | El middleware consulta el usuario en PostgreSQL y rechaza cuentas inexistentes o inactivas; obtiene el rol actual desde esa consulta. |
+| Autorización | Los alias `ADMIN`/`administrador` y `CLIENTE`/`dueno_mascota` se normalizan; las rutas aplican roles y el servicio de citas verifica propiedad. |
 
 ### 7.2. Protección de secretos y transporte
 
@@ -272,7 +272,7 @@ Como política propuesta, el cliente debe descartar su token al cerrar sesión y
 
 | Estado | Elementos |
 |---|---|
-| Implementado | Registro con validación, hash bcrypt de 12 rondas y asignación del rol `CLIENTE`; autenticación con bcrypt; generación y verificación de JWT HS256; expiración predeterminada de una hora; validación de emisor y audiencia; autenticación de cuentas activas; autorización por roles; verificación de propiedad de citas individuales. |
+| Implementado | Registro con validación, hash bcrypt de 12 rondas y roles fijados por ruta (`CLIENTE` o `dueno_mascota`); autenticación con bcrypt; JWT HS256 con expiración predeterminada de una hora, verificación de firma, expiración, emisor y audiencia; autenticación de cuentas activas; alias de roles; verificación de propiedad de citas individuales. |
 | Propuesto o pendiente | Integración efectiva del frontend React con la API; política técnica de cierre de sesión y revocación; endpoint y mecanismo de renovación; configuración de HTTPS en el despliegue definitivo. |
 
 ## 9. Referencias del repositorio
@@ -280,7 +280,7 @@ Como política propuesta, el cliente debe descartar su token al cerrar sesión y
 - [Rutas de autenticación](../backend/nodejs/src/routes/auth.routes.js)
 - [Servicio de autenticación](../backend/nodejs/src/services/auth.service.js)
 - [Controlador de autenticación](../backend/nodejs/src/controllers/auth.controller.js)
-- [Middleware JWT y autorización por roles](../backend/nodejs/src/middlewares/auth.middleware.js)
+- [Middleware JWT y autorización por roles](../backend/nodejs/src/middleware/auth.middleware.js)
 - [Validadores de autenticación](../backend/nodejs/src/validators/auth.validator.js)
 - [Repositorio de usuarios](../backend/nodejs/src/repositories/usuarios.repository.js)
 - [Rutas de citas](../backend/nodejs/src/routes/citas.routes.js)

@@ -25,15 +25,24 @@ CREATE TABLE IF NOT EXISTS citas (
     fecha_solicitud TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_citas_usuario
-ON citas(usuario_id);
+DO $$
+BEGIN
+    IF to_regclass('public.idx_citas_usuario') IS NULL THEN
+        EXECUTE 'CREATE INDEX idx_citas_usuario ON public.citas(usuario_id)';
+    END IF;
 
-CREATE INDEX IF NOT EXISTS idx_citas_servicio
-ON citas(servicio_id);
+    IF to_regclass('public.idx_citas_servicio') IS NULL THEN
+        EXECUTE 'CREATE INDEX idx_citas_servicio ON public.citas(servicio_id)';
+    END IF;
 
-CREATE INDEX IF NOT EXISTS idx_citas_fecha
-ON citas(fecha);
+    IF to_regclass('public.idx_citas_fecha') IS NULL THEN
+        EXECUTE 'CREATE INDEX idx_citas_fecha ON public.citas(fecha)';
+    END IF;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_citas_horario_activo
-ON citas(servicio_id, fecha, hora)
-WHERE estado IN ('Pendiente', 'Confirmada');
+    IF to_regclass('public.idx_citas_horario_activo') IS NULL THEN
+        EXECUTE 'CREATE UNIQUE INDEX idx_citas_horario_activo
+                 ON public.citas(servicio_id, fecha, hora)
+                 WHERE estado IN (''Pendiente'', ''Confirmada'')';
+    END IF;
+END
+$$;

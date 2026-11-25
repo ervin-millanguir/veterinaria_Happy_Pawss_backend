@@ -378,7 +378,7 @@ Esta actualización complementa el registro original de INC-001 y añade el segu
 
 ### Continuidad y resultados locales
 
-Para evitar retrasos se continuó el trabajo en el entorno local. El backend cuenta con PostgreSQL, Express, Lambda, autenticación JWT, autorización por roles y gestión de citas veterinarias. La última ejecución local informada del backend obtuvo **22 pruebas aprobadas y 0 fallidas**; las cinco pruebas registradas anteriormente en este informe se conservan como antecedente histórico.
+Para evitar retrasos se continuó el trabajo en el entorno local. El backend cuenta con PostgreSQL, Express, Lambda, autenticación JWT, autorización por roles y gestión de citas veterinarias. La evidencia previa de Guía 19 obtuvo **22 pruebas aprobadas y 0 fallidas**; las cinco pruebas registradas anteriormente en este informe se conservan como antecedente histórico. La validación funcional de integración del 25 de noviembre de 2026 ejecutó la suite ampliada sobre `happy_paws_test`: **29 aprobadas y 0 fallidas**. Esta validación local no confirma el despliegue ni la conectividad AWS/RDS.
 
 ### Próximas acciones pendientes
 

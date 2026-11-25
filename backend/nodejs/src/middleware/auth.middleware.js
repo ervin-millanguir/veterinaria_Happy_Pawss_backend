@@ -1,44 +1,100 @@
-const jwt = require('jsonwebtoken');
-const pool = require('../config/database');
+const jwt = require("jsonwebtoken");
+const usuariosRepository = require("../repositories/usuarios.repository");
+const { normalizarRol } = require("../utils/roles");
 
-async function verificarToken(req, res, next) {
-  const cabecera = req.headers.authorization || '';
-  const match = /^Bearer\s+(\S+)$/i.exec(cabecera);
-  if (!match) return res.status(401).json({ mensaje: 'Se requiere un JWT válido' });
+const jwtOptions = () => ({
+  algorithms: ["HS256"],
+  issuer: process.env.JWT_ISSUER || "happy-paws-api",
+  audience: process.env.JWT_AUDIENCE || "happy-paws-client"
+});
+
+const verificarToken = async (req, res, next) => {
+  const autorizacion = req.headers.authorization || "";
+  const match = /^Bearer\s+(\S+)$/i.exec(autorizacion);
+
+  if (!match) {
+    return res.status(401).json({
+      mensaje: "Se requiere un JWT válido"
+    });
+  }
+
   let payload;
+
   try {
-    payload = jwt.verify(match[1], process.env.JWT_SECRET, { algorithms: ['HS256'] });
-  } catch (_) {
-    return res.status(401).json({ mensaje: 'Token inválido o vencido' });
-  }
-  if (!Number.isInteger(payload.id) || payload.id < 1) {
-    return res.status(401).json({ mensaje: 'Token inválido' });
-  }
-  try {
-    const resultado = await pool.query(
-      `SELECT u.id, u.nombre, u.apellido, u.correo, u.activo, r.nombre AS rol
-       FROM usuarios u JOIN roles r ON r.id = u.rol_id WHERE u.id = $1`,
-      [payload.id]
+    payload = jwt.verify(
+      match[1],
+      process.env.JWT_SECRET,
+      jwtOptions()
     );
-    if (!resultado.rowCount || !resultado.rows[0].activo) {
-      return res.status(401).json({ mensaje: 'Cuenta inactiva o no encontrada' });
-    }
-    // Los permisos actuales se obtienen de PostgreSQL: no confiamos en un rol antiguo del JWT.
-    req.usuario = resultado.rows[0];
-    next();
   } catch (error) {
-    console.error('Error al validar la sesión:', error.message);
-    res.status(503).json({ mensaje: 'No es posible validar la sesión en este momento' });
+    return res.status(401).json({
+      mensaje: "Token inválido o vencido"
+    });
   }
-}
 
-function permitirRoles(...rolesPermitidos) {
-  return (req, res, next) => {
-    if (!req.usuario || !rolesPermitidos.includes(req.usuario.rol)) {
-      return res.status(403).json({ mensaje: 'No tienes permisos para realizar esta acción' });
+  const usuarioId = payload.sub !== undefined
+    ? Number(payload.sub)
+    : payload.id;
+
+  if (!Number.isSafeInteger(usuarioId) || usuarioId < 1) {
+    return res.status(401).json({
+      mensaje: "Token inválido"
+    });
+  }
+
+  if (
+    !Number.isSafeInteger(payload.exp) ||
+    payload.exp <= Math.floor(Date.now() / 1000)
+  ) {
+    return res.status(401).json({
+      mensaje: "Token inválido o vencido"
+    });
+  }
+
+  try {
+    const usuario = await usuariosRepository.buscarPorId(usuarioId);
+
+    if (!usuario || !usuario.activo) {
+      return res.status(401).json({
+        mensaje: "Cuenta inactiva o no encontrada"
+      });
     }
-    next();
-  };
-}
 
-module.exports = { verificarToken, permitirRoles };
+    req.usuario = usuario;
+    return next();
+  } catch (error) {
+    console.error("Error al validar la sesión:", error.message);
+    return res.status(503).json({
+      mensaje: "No es posible validar la sesión en este momento"
+    });
+  }
+};
+
+const permitirRoles = (...rolesPermitidos) => {
+  const rolesCanonicos = rolesPermitidos
+    .map(normalizarRol)
+    .filter(Boolean);
+
+  return (req, res, next) => {
+    if (!req.usuario) {
+      return res.status(401).json({
+        mensaje: "Autenticación requerida"
+      });
+    }
+
+    if (!rolesCanonicos.includes(normalizarRol(req.usuario.rol))) {
+      return res.status(403).json({
+        mensaje: "No tienes permisos para realizar esta acción"
+      });
+    }
+
+    return next();
+  };
+};
+
+module.exports = {
+  verificarToken,
+  permitirRoles,
+  autenticar: verificarToken,
+  autorizarRoles: permitirRoles
+};
